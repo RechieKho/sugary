@@ -2,9 +2,6 @@
 Logger functions to log stuff efficiently
 """
 
-import os
-from math import ceil
-
 # --- backend --- 
 
 class Colors: 
@@ -58,8 +55,8 @@ class Colors:
     }
     reset = f'{prefix}0{suffix}'
 
-# stylize text
-def s(text, fg_color = '', bg_color = '', styles = ''):
+# style text
+def s(text : str, fg_color = '', bg_color = '', styles = ''):
 
     is_in_dict = lambda key, dictionary: key in dictionary or ''
 
@@ -73,30 +70,95 @@ def s(text, fg_color = '', bg_color = '', styles = ''):
            f'{genSeq("bg")(bg_color)}'\
            f'{genSeq("styles")(styles)}'\
            f'{text}'\
-           f'{is_in_dict(fg_color, Colors.fg_color) and Colors.reset}'\
-           f'{is_in_dict(bg_color, Colors.bg_color) and Colors.reset}'\
-           f'{is_in_dict(styles, Colors.styles) and Colors.reset}'
+           f'{Colors.reset}'
 
-def get_console_dimenstion():
-    return os.popen('stty size', 'r').read().split()
-
+def cut_text(text, column_count, max_constrict = 20, max_expand = 20):
+    dirty_chunks = []
+    cut_point = list(range(0, len(text), column_count))
+    for i in range(len(cut_point)):
+        if i + 1 >= len(cut_point):
+            dirty_chunks.append(text[cut_point[i]:])
+        else:
+            constriction = 0
+            expansion = 0
+            right_char_index = cut_point[i+1] 
+            left_char_index = cut_point[i+1] - 1
+            is_cuttable = text[right_char_index] == ' ' or text[left_char_index] == ' '
+            if not is_cuttable:
+                while right_char_index + 1 < len(text) and left_char_index - 1 >= 0:
+                    # march until we met a space
+                    if expansion < max_expand:
+                        right_char_index += 1
+                        expansion += 1
+                        if text[right_char_index] == ' ':
+                            # update cut_point and cut
+                            cut_point[i + 1] = right_char_index + 1
+                            break
+                    if constriction < max_constrict:
+                        left_char_index -= 1
+                        constriction += 1
+                        if text[left_char_index] == ' ':
+                            #update cut_point and cut
+                            cut_point[i + 1] = left_char_index + 1
+                            break
+                    if constriction >= max_constrict and expansion >= max_expand:
+                        break
+            elif text[right_char_index] == ' ':
+                cut_point[i + 1] = right_char_index + 1
+            dirty_chunks.append(text[cut_point[i]: cut_point[i+1]])
+    
+    chunks = []
+    for i in [ i.split("\n") for i in dirty_chunks if i != '']: # clean dirty chunks
+        for splitted_segment in i:
+            chunks.append(splitted_segment)
+    return chunks
+    
 # -- frontend ---
 
+def make_billboard(title, text, width, title_style = {"styles" : "bold"}):
+    display_width = width + 8
+    rows_of_text = cut_text(text, display_width - 8, max_expand=0, max_constrict=display_width)
+
+    # generate text
+    content = ""
+    for row in rows_of_text:
+        content += " |  " + row + "\n"
+    section = f' ╭--{s(title, **title_style)}' + '-'*(display_width - 8 - len(title)) + '-+  \n' \
+            f'{content}' \
+                f' ╰--' + "-"*(display_width - 8) + '-+  '
+    return section
+
 def make_horizontal_line():
-    return "----------------------------------------------------"
+    return "-"*58
 
 def make_heading(text):
-    return s(text.title(), styles = 'underline') + "\n"
+    return s(text, styles = 'underline') + "\n"
 
-def make_warning():
-    pass
+def make_warning(text):
+    return make_billboard(" WARNING ", text, 50, {"fg_color": "yellow"})
+
+def make_error(text):
+    return make_billboard(" ERROR ", text, 50, {"fg_color": "red"})
 
 if __name__ == "__main__":
     # Test log.py
     print(make_heading("Test `log.py`"))
-    print("Test `stylize` function...\n")
+    print("Test `s` function...\n")
     print(s("This is stylized text with red foreground, green background, and bold font", "red", "green", "bold"))
     print(s("This is stylized text with black foreground, white background, and blink font", "black", "white", "blink"))
     print(s("This is stylized text without any flavour"))
     print(s("This is bold text", '', '', 'bold'))
+
+    print(make_horizontal_line())
+    print("Test `cut_text` function...\n")
+    text = "This is a a long text. This is a really long text. This is a really really long text"
+    print(f"text to be cut: '{text}'")
+    print(cut_text(text, 20))
+
+    print(make_horizontal_line())
+    print("Test `make_billboard` function...\n")
+    print(make_billboard(" test ", "This is a really good section", 25))
+    print(make_warning(f"You have fail your {s('history test', fg_color='red')}. Amen for you, we will not be saved."))
+    print(make_error("GOD IS DEAD"))
+    print(make_billboard(" Dear madam, ", f"I don't think you know why this texts are so {s('colorful', fg_color='green', bg_color='light_blue')}, good luck on finding out {s('LOL', fg_color='red')}", 75))
 
