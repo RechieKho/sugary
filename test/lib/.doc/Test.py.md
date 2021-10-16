@@ -1,3 +1,4 @@
+
 <style>
 .classes { /* for classes*/
     color: #F1FAEE;
@@ -17,6 +18,7 @@
     text-align: center;
 }
 </style>
+
 # DOCUMENTATION ⚙⚙⚙
 The aim of this documentation is to explain the purpose of functions and classes of this python script (`/test/lib/Test.py`). 
 <br>
