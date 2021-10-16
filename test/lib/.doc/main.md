@@ -15,7 +15,6 @@ These are the rough description of the files in current directory.
 
 | filename | description |
 | ----- | ----- |
-
-... currently no files in this directory
+| [`log.py`](./log.py.md) | A python modules that makes printing colourful and organized text easier |
 
 ## [Up a directory level](../../.doc/main.md)
