@@ -21,6 +21,13 @@
 The aim of this documentation is to explain the purpose of functions and classes of this python script (`test/lib/log.py`). 
 <br>
 <br>
+
+# Dependency
+This python script do not depends on any other python scripts
+
+<br>
+<br>
+
 # Classes 
 <div class="classes">Colors()</div>
 ---
