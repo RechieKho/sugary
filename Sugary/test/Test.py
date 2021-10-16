@@ -2,7 +2,7 @@
 Test class that writes test easily
 """
 
-from shared import log
+from ..shared import log
 
 class Test:
     class Compare:

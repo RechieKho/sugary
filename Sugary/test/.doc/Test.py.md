@@ -26,7 +26,7 @@ The aim of this documentation is to explain the purpose of functions and classes
 
 # Dependency
 This python script do not depends on: 
-- `/shared/log.py`
+- `Sugary/shared/log.py`
   
 <br>
 <br>
