@@ -150,7 +150,7 @@ def make_heading(text:str) -> str:
     """
     It returns an underlined text (A heading ok?).
     """
-    return s(text, styles = 'underline') + "\n"
+    return s(text, styles = 'underline') 
 
 def make_warning(text:str) -> str:
     """

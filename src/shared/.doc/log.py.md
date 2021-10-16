@@ -18,7 +18,7 @@
 }
 </style>
 # DOCUMENTATION ⚙⚙⚙
-The aim of this documentation is to explain the purpose of functions and classes of this python script (`test/lib/log.py`). 
+The aim of this documentation is to explain the purpose of functions and classes of this python script (`/shared/log.py`). 
 <br>
 <br>
 
