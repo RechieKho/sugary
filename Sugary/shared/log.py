@@ -152,12 +152,6 @@ def make_heading(text:str) -> str:
     """
     return s(text, styles = 'underline') 
 
-def make_warning(text:str) -> str:
-    """
-    A specialized `make_billboard`. Title of billboard always `WARNING`.
-    """
-    return make_billboard(" WARNING ", text, 50, {"fg_color": "yellow"})
-
 def make_error(text:str) -> str:
     """
     A specialized `make_billboard`. Title of billboard always `ERROR`.
@@ -182,7 +176,6 @@ if __name__ == "__main__":
     print(make_horizontal_line())
     print("Test `make_billboard` function...\n")
     print(make_billboard(" test ", "This is a really good section", 25))
-    print(make_warning(f"You have fail your {s('history test', fg_color='red')}. Amen for you, we will not be saved."))
     print(make_error("GOD IS DEAD"))
     print(make_billboard(" Dear madam, ", f"I don't think you know why this texts are so {s('colorful', fg_color='green', bg_color='light_blue')}, good luck on finding out {s('LOL', fg_color='red')}", 75))
 

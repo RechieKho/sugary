@@ -167,23 +167,7 @@ A heading string (an underlined text)
 
 <br>
 ---
-<div class="functions">make_warning(text: str)</div>
----
-
-## Description
-A specialized `make_billboard`. Title of billboard always `WARNING`.
-
-## Parameters
-| identifier | description |
-| ----- | ----- | 
-| `text` | A `str`. Content of the warning billboard. |
-
-## Return Value
-A warning billboard.
-
-<br>
----
-<div class="functions">make_warning(text: str)</div>
+<div class="functions">make_error(text: str)</div>
 ---
 
 ## Description
