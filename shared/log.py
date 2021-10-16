@@ -5,6 +5,9 @@ Logger functions to log stuff efficiently
 # --- backend --- 
 
 class Colors: 
+    """
+    It is a class that only stores data for creating ansi escape codes to set the color and the style of the text.
+    """
     prefix = '\033[1;'
     suffix = 'm'
     fg_color = {
@@ -56,7 +59,10 @@ class Colors:
     reset = f'{prefix}0{suffix}'
 
 # style text
-def s(text : str, fg_color = '', bg_color = '', styles = ''):
+def s(text : str, fg_color = '', bg_color = '', styles = '') -> str:
+    """
+    The `s` stands for `style`. It is a helper function that returns styled text using the `Colors` class based on arguments. 
+    """
 
     is_in_dict = lambda key, dictionary: key in dictionary or ''
 
@@ -72,7 +78,10 @@ def s(text : str, fg_color = '', bg_color = '', styles = ''):
            f'{text}'\
            f'{Colors.reset}'
 
-def cut_text(text, column_count, max_constrict = 20, max_expand = 20):
+def cut_text(text:str, column_count: int, max_constrict = 20, max_expand = 20) -> list[str]:
+    """
+    It cuts the text into a list of rows of text segment. It only cut at space. it is used to control the width of the text that will be printed to the console. 
+    """
     dirty_chunks = []
     cut_point = list(range(0, len(text), column_count))
     for i in range(len(cut_point)):
@@ -115,7 +124,10 @@ def cut_text(text, column_count, max_constrict = 20, max_expand = 20):
     
 # -- frontend ---
 
-def make_billboard(title, text, width, title_style = {"styles" : "bold"}):
+def make_billboard(title:str, text:str, width:int, title_style = {"styles" : "bold"}) -> str:
+    """
+    it makes and returns a string of text that looks like a 'billboard' when printed.
+    """
     display_width = width + 8
     rows_of_text = cut_text(text, display_width - 8, max_expand=0, max_constrict=display_width)
 
@@ -128,16 +140,28 @@ def make_billboard(title, text, width, title_style = {"styles" : "bold"}):
                 f' ╰--' + "-"*(display_width - 8) + '-+  '
     return section
 
-def make_horizontal_line():
+def make_horizontal_line() -> str:
+    """
+    It returns a string of 58 dashes.
+    """
     return "-"*58
 
-def make_heading(text):
+def make_heading(text:str) -> str:
+    """
+    It returns an underlined text (A heading ok?).
+    """
     return s(text, styles = 'underline') + "\n"
 
-def make_warning(text):
+def make_warning(text:str) -> str:
+    """
+    A specialized `make_billboard`. Title of billboard always `WARNING`.
+    """
     return make_billboard(" WARNING ", text, 50, {"fg_color": "yellow"})
 
-def make_error(text):
+def make_error(text:str) -> str:
+    """
+    A specialized `make_billboard`. Title of billboard always `ERROR`.
+    """
     return make_billboard(" ERROR ", text, 50, {"fg_color": "red"})
 
 if __name__ == "__main__":
