@@ -9,8 +9,8 @@ The name of the functions can be changed in `Sugary/src/settings.py`
 import importlib.util as u
 from types import FunctionType
 
-from ..settings import USERFILE
-from ..error.error import err
+from ...settings import USERFILE
+from ...error.core import err
 
 def import_setting():
     """

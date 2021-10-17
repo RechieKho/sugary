@@ -2,9 +2,9 @@
 Provide function to test Sugary.src.configurator
 """
 
-from ..src.configurator import imp
+from ..src.configurator.read import imp
 
-from .Test import Test
+from .core import Test
 
 def test_imp(): # test imp.py
     test = Test("imp.py")
