@@ -6,11 +6,13 @@ from Sugary.test import (
     test_configurator as ts_c,
 )
 
+from Sugary.shared.Scheme.Constraint import ListLikeConstraint
+
 def test():
     """
     entry point of the test file
     """
-    ts_c.test_imp() # test Sugary/src/configurator/imp.py
+    ts_c.test_imp() # test Sugary/src/configurator/read/imp.py
     pass
 
 if __name__ == "__main__":
