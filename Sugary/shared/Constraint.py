@@ -1,5 +1,5 @@
 """
-Provides Classes for storing constraints in Scheme
+Constraint for checking the type and structure of values
 """
 
 from typing import Union
@@ -36,7 +36,7 @@ class SimpleConstraint:
 
 class DictConstraint:
     """
-    `DictConstraint` class. Constraint for dictionary
+    `DictConstraint` class. Constraint for checking structure and datatype of dictionary.
     """
 
     def __init__(self, structure: dict, accept_excess = True, accept_scarcity = False) -> None:
@@ -112,11 +112,30 @@ class DictConstraint:
                     return False
         
         return not(bool(len(value_keys)) and not accept_excess)
-        
 
 class ListLikeConstraint:
     """
-    `ListLikeConstraint` class. Constraint that specifies structure of a list or tuple
+    `ListLikeConstraint` class. Constraint that specifies structure of a list or tuple.
+    
+    structure (constraint) can be very flexible.
+    Example of structure:
+    [int, int, int]:
+        [1,2,3] => accepted
+        [1,2,3,4] => not accepted
+        [1,2] => not accepted
+        ["LOL"] => not accepted
+    [Countless(int)]:
+        [1] => accepted
+        [1, 2, 3,4 ,5 , 6, 7, 8] => accepted
+        ["moo"] => not accepted
+    [Multiple(int, 3)] (same as [int, int, int]):
+        [1,2,3] => accepted
+        [1,2,3,4] => not accepted
+        [1,2] => not accepted
+        ["LOL"] => not accepted
+    [Countless((int, int))]:
+        [(1,2),(445,65)] => accepted
+        [65] => not accepted
     """
 
     class Countless:
@@ -126,7 +145,14 @@ class ListLikeConstraint:
     
         def __repr__(self) -> str:
             return f"Countless({self.type}, at least {self.at_least} elements)"
-
+        
+        def validate(self, value):
+            if SimpleConstraint.is_simple_constraint(self.type):
+                return SimpleConstraint.validate(self.type, value)
+            elif ListLikeConstraint.is_valid_lk_constraint(self.type):
+                return ListLikeConstraint.validate(self.type, value)
+            elif DictConstraint.is_valid_dt_constraint(self.type):
+                return DictConstraint.validate(self.type, value)
 
     class Multiple:
         def __init__(self, type: type, count: int) -> None:
@@ -162,17 +188,60 @@ class ListLikeConstraint:
                 return False
         return True
 
-    # TODO
     def validate(self, value) -> bool:
         """
         Validate value
         """
-        return
+        return ListLikeConstraint.validate(self.structure, value)
     
-    # TODO
     @staticmethod
     def validate(structure: Union[list, tuple], value) -> bool:
-        pass
+        """
+        Validate whether value follows the structure
+        """
+        s_structure = ListLikeConstraint.simplify_constraint(structure)
+        print(s_structure)
+        if s_structure == None:
+            return False
+        
+        if type(value) not in [list, tuple]:
+            return False
+        
+        offset = 0
+        for i, c in enumerate(s_structure):
+            value_i = i + offset
+
+            if value_i >= len(value):
+                return False
+
+            if SimpleConstraint.is_simple_constraint(c):
+                if not SimpleConstraint.validate(c,value[value_i]):
+                    return False
+            elif ListLikeConstraint.is_valid_lk_constraint(c):
+                if not ListLikeConstraint.validate(c,value[value_i]):
+                    return False
+            elif DictConstraint.is_valid_dt_constraint(c):
+                if not DictConstraint.validate(c,value[value_i]):
+                    return False
+            elif type(c) == ListLikeConstraint.Countless:
+                same_type_count = 0
+                while True:
+                    # check type
+                    if value_i >= len(value) or not c.validate(value[value_i]):
+                        if same_type_count < c.at_least:
+                            return False
+                        else:
+                            offset -= 1
+                            break
+                    else:
+                        same_type_count += 1
+                        offset += 1
+                        value_i = i + offset
+
+        
+        if offset + len(s_structure) != len(value):
+            return False
+        return True
 
     @staticmethod
     def simplify_constraint(structure: Union[list, tuple]) -> Union[None, list, tuple]:
@@ -180,7 +249,6 @@ class ListLikeConstraint:
         Expands `Multiple` class into types ([Multiple(int, 3)] => [int, int, int])
 
         Merge `Countless` class with types ([Countless(int, at_least = 1), int, int] => [Countless(int, at_least = 3)])
-
         Merge `Countless` class with adjecent `Countless class ([Countless(int, at_least=1), Countless(int, at_least=3)] => [Countless(int, at_least = 4)])
 
         Note: function do not simplify recursively. Nested lf-constraint will not be simplified
@@ -190,8 +258,10 @@ class ListLikeConstraint:
         
         structure_type = type(structure)
 
-        # expand multiple
         def expand_mt(structure):
+            """
+            Expand `Multiple` class in a structure (constraint)
+            """
             e = []
             for c in structure:
                 if type(c) == ListLikeConstraint.Multiple:
@@ -201,80 +271,56 @@ class ListLikeConstraint:
                     e.append(c)
             return e
         
-        e = expand_mt(structure)
-        
-        # Merge Countless class with types
-        def merge_ct_with_types(structure: list):
-            s = []
-            i_from = 0 # keep track on what we copied to which index in `expanded` list
-            ct_indexes = [ i for i in range(len(structure)) if type(structure[i]) == ListLikeConstraint.Countless]
+        def get_ct_group_info(structure):
+            """
+            Group `Countless` class. Assume there is no `Multiple` class.
+
+            returns list of (group_start, group_end, new_countless)
+
+            Example:
+            [int, Countless(int, at_least=1), int, int, str] => [(0, 3, Countless(int, 4))]
+            [int, Countless(int, at_least=1), str, int, Countless(int, at_least=2)] => [(0, 1, Countless(int, at_least=2)), (3, 4, Countless(int, at_least=3))]
+            """
+
+            result = []
+            ct_indexes = [ i for i, c in enumerate(structure) if type(c) == ListLikeConstraint.Countless]
             for ct_i in ct_indexes:
-                expected_type = structure[ct_i].type # current Countless's type
-                new_ct = ListLikeConstraint.Countless(expected_type, structure[ct_i].at_least)
-                i_to = i_from
-                new_i_from = i_from
+                new_countless = ListLikeConstraint.Countless(structure[ct_i].type, structure[ct_i].at_least)
+                group_start = 0
+                group_end = len(structure) - 1
+                # find the group_start
+                for s_i in range(ct_i - 1, -1, -1):
+                    c = structure[s_i]
+                    if c == new_countless.type: # found type that is same as Countless' type
+                        new_countless.at_least += 1
+                    else: # found other types (no good no good)
+                        group_start = s_i + 1
+                        break
+                
+                # find the group_end
+                for s_i in range(ct_i+1, len(structure)):
+                    c = structure[s_i]
+                    if type(c) == ListLikeConstraint.Countless and c.type == new_countless.type: # found adjecent countless with same type
+                        new_countless.at_least += c.at_least
+                        ct_indexes.remove(s_i) # remove the Countless that will be grouped as it already grouped with this group
+                    elif c ==new_countless.type: # found type that is same as Countless' type
+                        new_countless.at_least += 1
+                    else: # found other types (no good no good)
+                        group_end = s_i - 1
+                        break
 
-                for j in range(ct_i - 1, -1, -1): # loop from the index before Countless class to the begining
-                    if structure[j] == expected_type:
-                        new_ct.at_least += 1
-                    else:
-                        i_to = j + 1
-                        break
-                    if j == 0:
-                        i_to = j 
-                        break
-                        
-                for j in range(ct_i + 1, len(structure)):
-                    if structure[j] == expected_type:
-                        new_ct.at_least += 1
-                    else:
-                        new_i_from = j
-                        break
-                    if j == len(structure) - 1:
-                        new_i_from = j
-                        break
-                        
-                s = [ *s , *structure[i_from: i_to], new_ct ]
-                i_from = new_i_from
-            return [ *s, *structure[i_from:] ]
+                result.append((group_start, group_end, new_countless))
+            return result
+
+        expanded = expand_mt(structure)
+        ct_groups = get_ct_group_info(expanded)
+        new_structure = []
+        last_end = 0
+        print(ct_groups)
+        for start, end, ct in ct_groups:
+            new_structure = [ *new_structure, *expanded[last_end: start], ct ]
+            last_end = end + 1
+        new_structure = [ *new_structure, *expanded[last_end:] ]
+        return structure_type(new_structure)
         
-        s1 = merge_ct_with_types(e)
-            
-        def merge_cts(structure:list):
-            s = []
-            recent_countless: Union[ListLikeConstraint.Countless, None] = None 
-            new_countless: Union[ListLikeConstraint.Countless, None] = None
-            for i in structure:
-                if type(i) != ListLikeConstraint.Countless:
-                    if new_countless != None:
-                        s.append(new_countless)
-                        new_countless = None
-                    recent_countless = None
-                    s.append(i)
-                else:
-                    # i is a Countless instance
-                    if recent_countless != None:
-                        if recent_countless.type == i.type:
-                            if new_countless == None:
-                                new_countless = ListLikeConstraint.Countless(i.type, recent_countless.at_least + i.at_least)
-                            else:
-                                new_countless.at_least += i.at_least
-                        else:
-                            if new_countless != None:
-                                s.append(new_countless)
-                                new_countless = None
-                            else:
-                                s.append(recent_countless)
-                                recent_countless = None
-                                s.append(i)
-                    else:
-                        recent_countless = i
-            return s
         
-        return structure_type(merge_cts(s1))
-
-
-class AdvanceConstraint:
-    """
-    `AdvanceConstraint` class. Beyond just types.
-    """

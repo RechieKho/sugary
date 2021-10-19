@@ -6,7 +6,6 @@ from Sugary.test import (
     test_configurator as ts_c,
 )
 
-from Sugary.shared.Scheme.Constraint import ListLikeConstraint
 
 def test():
     """
