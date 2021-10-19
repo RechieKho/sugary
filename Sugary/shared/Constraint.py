@@ -105,6 +105,9 @@ class DictConstraint:
                 elif Or.is_or_constraint(structure[key]):
                     if not Or.validate(structure[key], value[key]):
                         return False
+                elif Check.is_check_constraint(structure[key]):
+                    if not Check.validate(structure[key], value[key]):
+                        return False
                     
             else: # value do not contains key required
                 if not accept_scarcity:
@@ -138,28 +141,32 @@ class ListLikeConstraint:
     """
 
     class Countless:
-        def __init__(self, type: type, at_least: int = 1) -> None:
-            self.type = type
+        def __init__(self, constraint: type, at_least: int = 1) -> None:
+            self.constraint = constraint
             self.at_least = at_least
     
         def __repr__(self) -> str:
-            return f"Countless({self.type}, at least {self.at_least} elements)"
+            return f"Countless({self.constraint}, at least {self.at_least} elements)"
         
         def validate(self, value):
-            if SimpleConstraint.is_simple_constraint(self.type):
-                return SimpleConstraint.static_validate(self.type, value)
-            elif ListLikeConstraint.is_valid_lk_constraint(self.type):
-                return ListLikeConstraint.static_validate(self.type, value)
-            elif DictConstraint.is_valid_dt_constraint(self.type):
-                return DictConstraint.static_validate(self.type, value)
+            if SimpleConstraint.is_simple_constraint(self.constraint):
+                return SimpleConstraint.static_validate(self.constraint, value)
+            elif ListLikeConstraint.is_valid_lk_constraint(self.constraint):
+                return ListLikeConstraint.static_validate(self.constraint, value)
+            elif DictConstraint.is_valid_dt_constraint(self.constraint):
+                return DictConstraint.static_validate(self.constraint, value)
+            elif Or.is_or_constraint(self.constraint):
+                return Or.static_validate(self.constraint, value)
+            elif Check.is_check_constraint(self.constraint):
+                return Check.static_validate(self.constraint, value)
 
     class Multiple:
-        def __init__(self, type: type, count: int) -> None:
-            self.type = type
+        def __init__(self, constraint: type, count: int) -> None:
+            self.constraint = constraint
             self.count = count
 
         def __repr__(self) -> str:
-            return f"Multiple({self.type}, {self.count})"
+            return f"Multiple({self.constraint}, {self.count})"
 
     def __init__(self, structure: Union[list, tuple]) -> None:
         self.structure = structure
@@ -222,7 +229,10 @@ class ListLikeConstraint:
                 if not DictConstraint.static_validate(c,value[value_i]):
                     return False
             elif Or.is_or_constraint(c):
-                if not Or.validate(c, value[value_i]):
+                if not Or.static_validate(c, value[value_i]):
+                    return False
+            elif Check.is_check_constraint(c):
+                if not Check.static_validate(c, value[value_i]):
                     return False
             elif type(c) == ListLikeConstraint.Countless:
                 same_type_count = 0
@@ -267,7 +277,7 @@ class ListLikeConstraint:
             for c in structure:
                 if type(c) == ListLikeConstraint.Multiple:
                     for _ in range(c.count):
-                        e.append(c.type)
+                        e.append(c.constraint)
                 else:
                     e.append(c)
             return e
@@ -286,13 +296,13 @@ class ListLikeConstraint:
             result = []
             ct_indexes = [ i for i, c in enumerate(structure) if type(c) == ListLikeConstraint.Countless]
             for ct_i in ct_indexes:
-                new_countless = ListLikeConstraint.Countless(structure[ct_i].type, structure[ct_i].at_least)
+                new_countless = ListLikeConstraint.Countless(structure[ct_i].constraint, structure[ct_i].at_least)
                 group_start = 0
                 group_end = len(structure) - 1
                 # find the group_start
                 for s_i in range(ct_i - 1, -1, -1):
                     c = structure[s_i]
-                    if c == new_countless.type: # found type that is same as Countless' type
+                    if c == new_countless.constraint: # found type that is same as Countless' type
                         new_countless.at_least += 1
                     else: # found other types (no good no good)
                         group_start = s_i + 1
@@ -301,10 +311,10 @@ class ListLikeConstraint:
                 # find the group_end
                 for s_i in range(ct_i+1, len(structure)):
                     c = structure[s_i]
-                    if type(c) == ListLikeConstraint.Countless and c.type == new_countless.type: # found adjecent countless with same type
+                    if type(c) == ListLikeConstraint.Countless and c.constraint == new_countless.constraint: # found adjecent countless with same type
                         new_countless.at_least += c.at_least
                         ct_indexes.remove(s_i) # remove the Countless that will be grouped as it already grouped with this group
-                    elif c ==new_countless.type: # found type that is same as Countless' type
+                    elif c ==new_countless.constraint: # found type that is same as Countless' type
                         new_countless.at_least += 1
                     else: # found other types (no good no good)
                         group_end = s_i - 1
@@ -330,14 +340,14 @@ class Or:
     """
 
     def __init__(self, *constraint) -> None:
-        self.constraint_list = constraint
+        self.constraint = constraint
 
     @staticmethod
     def is_or_constraint(constraint) -> bool:
         return type(constraint) == Or
     
     def validate(self, value) -> bool:
-        for c in self.constraint_list:
+        for c in self.constraint:
             if SimpleConstraint.is_simple_constraint(c):
                 if SimpleConstraint.static_validate(c,value):
                     return True
@@ -357,3 +367,28 @@ class Or:
         return constraint.validate(value)
 
 
+
+class Check:
+    """
+    `Check` class. A purely user-defined constraint
+    """
+
+    def __init__(self, constraint: FunctionType) -> None:
+        self.constraint = constraint
+
+    def is_constraint_valid(self) -> bool:
+        return Check.is_check_constraint(self.constraint)
+    
+    @staticmethod
+    def is_check_constraint(constraint) -> bool:
+        return type(constraint) == FunctionType
+    
+    def validate(self, value) -> bool:
+        return Check.static_validate(self.constraint, value)
+    
+    @staticmethod
+    def static_validate(constraint: FunctionType, value) -> bool:
+        if not Check.is_static_constraint(constraint):
+            return False
+        
+        return constraint(value)
