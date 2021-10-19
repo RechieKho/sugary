@@ -3,6 +3,7 @@ Constraint for checking the type and structure of values
 """
 
 from typing import Union
+from types import FunctionType
 
 class SimpleConstraint:
     """
@@ -20,10 +21,10 @@ class SimpleConstraint:
         return type(constraint) == type
 
     def validate(self, value) -> bool:
-        return SimpleConstraint.validate(self.constraint, value)
+        return SimpleConstraint.static_validate(self.constraint, value)
     
     @staticmethod
-    def validate(constraint: type, value) -> bool:
+    def static_validate(constraint: type, value) -> bool:
         """
         validate value
         """
@@ -61,21 +62,21 @@ class DictConstraint:
                 return False
             
             value_c = structure[key]
-            if type(value_c) in [list, tuple]: # if value is another list-like constraint
+            if type(value_c) == list:
                 if not ListLikeConstraint.is_valid_lk_constraint(value_c):
                     return False
-                elif type(value_c) == dict:
-                    if not DictConstraint.is_valid_dt_constraint(value_c):
-                        return False
-                elif type(value_c) == type:
+            elif type(value_c) == dict :
+                if not DictConstraint.is_valid_dt_constraint(value_c):
                     return False
+            elif (type(value_c) != type):
+                return False
         return True
     
     def validate(self, value):
-        return DictConstraint.validate(self.structure, value, self.accept_excess, self.accept_scarcity)
+        return DictConstraint.static_validate(self.structure, value, self.accept_excess, self.accept_scarcity)
 
     @staticmethod
-    def validate(structure:dict, value: dict, accept_excess = True, accept_scarcity = False) -> bool:
+    def static_validate(structure:dict, value: dict, accept_excess = True, accept_scarcity = False) -> bool:
         """
         validate value
         """
@@ -93,19 +94,17 @@ class DictConstraint:
 
                 # Check
                 if SimpleConstraint.is_simple_constraint(structure[key]):
-                    if not SimpleConstraint.validate(structure[key], value[key]):
+                    if not SimpleConstraint.static_validate(structure[key], value[key]):
                         return False
-                    continue
                 elif DictConstraint.is_valid_dt_constraint(structure[key]):
-                    if not DictConstraint.validate(structure[key], value[key]):
+                    if not DictConstraint.static_validate(structure[key], value[key]):
                         return False
-                    continue
                 elif ListLikeConstraint.is_valid_lk_constraint(structure[key]):
-                    if not ListLikeConstraint.validate(structure[key], value[key]):
+                    if not ListLikeConstraint.static_validate(structure[key], value[key]):
                         return False
-                    continue
-                else:
-                    return False
+                elif Or.is_or_constraint(structure[key]):
+                    if not Or.validate(structure[key], value[key]):
+                        return False
                     
             else: # value do not contains key required
                 if not accept_scarcity:
@@ -148,11 +147,11 @@ class ListLikeConstraint:
         
         def validate(self, value):
             if SimpleConstraint.is_simple_constraint(self.type):
-                return SimpleConstraint.validate(self.type, value)
+                return SimpleConstraint.static_validate(self.type, value)
             elif ListLikeConstraint.is_valid_lk_constraint(self.type):
-                return ListLikeConstraint.validate(self.type, value)
+                return ListLikeConstraint.static_validate(self.type, value)
             elif DictConstraint.is_valid_dt_constraint(self.type):
-                return DictConstraint.validate(self.type, value)
+                return DictConstraint.static_validate(self.type, value)
 
     class Multiple:
         def __init__(self, type: type, count: int) -> None:
@@ -192,15 +191,14 @@ class ListLikeConstraint:
         """
         Validate value
         """
-        return ListLikeConstraint.validate(self.structure, value)
+        return ListLikeConstraint.static_validate(self.structure, value)
     
     @staticmethod
-    def validate(structure: Union[list, tuple], value) -> bool:
+    def static_validate(structure: Union[list, tuple], value) -> bool:
         """
         Validate whether value follows the structure
         """
         s_structure = ListLikeConstraint.simplify_constraint(structure)
-        print(s_structure)
         if s_structure == None:
             return False
         
@@ -215,13 +213,16 @@ class ListLikeConstraint:
                 return False
 
             if SimpleConstraint.is_simple_constraint(c):
-                if not SimpleConstraint.validate(c,value[value_i]):
+                if not SimpleConstraint.static_validate(c,value[value_i]):
                     return False
             elif ListLikeConstraint.is_valid_lk_constraint(c):
-                if not ListLikeConstraint.validate(c,value[value_i]):
+                if not ListLikeConstraint.static_validate(c,value[value_i]):
                     return False
             elif DictConstraint.is_valid_dt_constraint(c):
-                if not DictConstraint.validate(c,value[value_i]):
+                if not DictConstraint.static_validate(c,value[value_i]):
+                    return False
+            elif Or.is_or_constraint(c):
+                if not Or.validate(c, value[value_i]):
                     return False
             elif type(c) == ListLikeConstraint.Countless:
                 same_type_count = 0
@@ -316,7 +317,6 @@ class ListLikeConstraint:
         ct_groups = get_ct_group_info(expanded)
         new_structure = []
         last_end = 0
-        print(ct_groups)
         for start, end, ct in ct_groups:
             new_structure = [ *new_structure, *expanded[last_end: start], ct ]
             last_end = end + 1
@@ -324,3 +324,36 @@ class ListLikeConstraint:
         return structure_type(new_structure)
         
         
+class Or:
+    """
+    `Or` class. A `Union` constraint
+    """
+
+    def __init__(self, *constraint) -> None:
+        self.constraint_list = constraint
+
+    @staticmethod
+    def is_or_constraint(constraint) -> bool:
+        return type(constraint) == Or
+    
+    def validate(self, value) -> bool:
+        for c in self.constraint_list:
+            if SimpleConstraint.is_simple_constraint(c):
+                if SimpleConstraint.static_validate(c,value):
+                    return True
+            elif ListLikeConstraint.is_valid_lk_constraint(c):
+                if ListLikeConstraint.static_validate(c,value):
+                    return True
+            elif DictConstraint.is_valid_dt_constraint(c):
+                if DictConstraint.static_validate(c,value):
+                    return True
+        return False
+    
+    @staticmethod
+    def static_validate(constraint, value) -> bool:
+        if not Or.is_or_constraint(constraint):
+            return False
+        
+        return constraint.validate(value)
+
+
