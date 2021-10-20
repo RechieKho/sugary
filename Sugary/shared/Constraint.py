@@ -388,7 +388,7 @@ class Check:
     
     @staticmethod
     def static_validate(constraint: FunctionType, value) -> bool:
-        if not Check.is_static_constraint(constraint):
+        if not Check.is_check_constraint(constraint):
             return False
         
         return constraint(value)
