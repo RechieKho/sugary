@@ -85,32 +85,104 @@ class TypeConstraint:
         
 
 class DictConstraint:
-    """
-    `DictConstraint` class. Constraint for checking structure and datatype of dictionary.
+    """A class that checks dictionaries using dictionary constraint
+
+    Create an instance by passing in an dictionary constraint, and specify accept_excess and accept_scarcity.
+
+    Dictionary constraint is basically a dictionary.
+    Example of a dictionary constraint:
+    ```
+    example_constraint = {
+        "type_constraint": bool,
+        "dict_constraint": {
+            "key": int
+        },
+        "list_like_constraint": [int, int, int]
+        "or_constraint": Or(int, str)
+        "check_constraint": Check(func)
+    }
+    ```
+    A Dictionary constraint's key must not be a type. 
+    Its value can be either a type constraint, dictionary constraint, list-like constraint, 'or' constraint, or 'check' constraint.
+
+    Validation will be carry out according to key. `value[key]` will be validated using the `constraint[key]`.
+    For instances,
+    ```
+    value = {
+        "type_constraint": False,
+        "or_constraint": 1
+    }
+    ```
+    When `value` is validated using `example_constraint`, `value["type_constraint"]` will be validated by the `example_constraint["type_constraint"]`.
+    Same goes to `value["or_constraint"]`.
+    Read the `Attributes` section for `accept_excess` and `accept_scarcity`.
+    
+    Attributes:
+    -----
+    constraint : dict
+        A dictionary constraint
+    accept_excess : bool
+        Accept dictionary to be validated contains key that the dictionary constraint doesn't contains. 
+        It makes the `validate` returns false if dictionary contains key that the constraint doesn't containts and accept_excess = False.
+    accept_scarcity : bool
+        Accept dictionary to be validated does not contain key that the dictionary constraint has.
+        It makes the `validate` returns false if dictionary does not contain key that the constraint has and accept_scarcity = False.
+    
+    Static method:
+    -----
+    is_valid_dt_constraint(constraint: any) -> bool
+        Check whether the instance's constraint is a valid dictionary constraint.
+    static_validate(constraint: dict, value: any, accept_excess = True, accept_scarcity = False)
+        Validate the value using the instance's constraint 
+
+    Method:
+    -----
+    is_constraint_valid(self) -> bool
+        Check whether the instance's constraint is a valid dictionary constraint. 
+    validate(value: any) -> bool
+        Validate the value using the instance's constraint
     """
 
-    def __init__(self, structure: dict, accept_excess = True, accept_scarcity = False) -> None:
-        self.structure = structure
+    def __init__(self, constraint: dict, accept_excess = True, accept_scarcity = False) -> None:
+        self.constraint = constraint
         self.accept_excess = accept_excess
         self.accept_scarcity = accept_scarcity
     
     def is_constraint_valid(self) -> bool:
-        return DictConstraint.is_valid_dt_constraint(self.structure)
+        """Check whether the instance's constraint is a valid dictionary constraint.
+
+        A dictionary cosntraint must be:
+        1. A dictionary
+        2. The keys must not be a type (int class, str class)
+        3. The value must be either a type constraint, dictionary constraint, list-like constraint, 'or' constraint, or 'check' constraint.
+        """
+
+        return DictConstraint.is_valid_dt_constraint(self.constraint)
 
     @staticmethod
-    def is_valid_dt_constraint(structure: dict) -> bool:
-        """
-        is dictionary constraint valid
+    def is_valid_dt_constraint(constraint) -> bool:
+        """Check whether the constraint is a valid dictionary constraint.
+        
+        A dictionary cosntraint must be:
+        1. A dictionary
+        2. The keys must not be a type (int class, str class)
+        3. The value must be either a type constraint, dictionary constraint, list-like constraint, 'or' constraint, or 'check' constraint.
+
+        Args:
+            constraint (any): constraint to be checked
+
+        Returns:
+            bool: True if the constraint is a valid constraint, else False
         """
 
-        if type(structure) != dict:
+        if type(constraint) != dict:
             return False
 
-        for key in structure:
+        for key in constraint:
             if type(key) == type: # only accept literal value
                 return False
             
-            value_c = structure[key]
+            value_c = constraint[key]
             if type(value_c) == list:
                 if not ListLikeConstraint.is_valid_lk_constraint(value_c):
                     return False
@@ -122,40 +194,63 @@ class DictConstraint:
         return True
     
     def validate(self, value):
-        return DictConstraint.static_validate(self.structure, value, self.accept_excess, self.accept_scarcity)
+        """Validate the value using the instance's constraint
+
+        `value[key]` will be validated using the `constraint[key]`. 
+        Read Documentation of `DictConstraint` class for example.
+
+        Args:
+            value (any): value to be validated
+        
+        Returns: 
+            bool: whether the value satisfy the dictionary constraint
+        """
+
+        return DictConstraint.static_validate(self.constraint, value, self.accept_excess, self.accept_scarcity)
 
     @staticmethod
-    def static_validate(structure:dict, value: dict, accept_excess = True, accept_scarcity = False) -> bool:
-        """
-        validate value
+    def static_validate(constraint:dict, value: dict, accept_excess = True, accept_scarcity = False) -> bool:
+        """Validate the value using the instance's constraint
+
+        `value[key]` will be validated using the `constraint[key]`. 
+        Read Documentation of `DictConstraint` class for example.
+
+        Args:
+            constraint (dict): dictionary constraint used
+            value (any): value to be validated
+            accept_excess: accept value to have extra key value pair than constraint
+            accept_scarcity: accept value doesn't contains key in constraint
+        
+        Returns: 
+            bool: whether the value satisfy the dictionary constraint
         """
 
-        if not DictConstraint.is_valid_dt_constraint(structure):
+        if not DictConstraint.is_valid_dt_constraint(constraint):
             return False
         
         if type(value) != dict:
             return False
 
         value_keys = list(value.keys())
-        for key in structure:
+        for key in constraint:
             if key in value_keys: # value contains key required
                 value_keys.remove(key) # remove checked key. if there still have keys after checking, is_excess = true
 
                 # Check
-                if TypeConstraint.is_type_constraint(structure[key]):
-                    if not TypeConstraint.static_validate(structure[key], value[key]):
+                if TypeConstraint.is_type_constraint(constraint[key]):
+                    if not TypeConstraint.static_validate(constraint[key], value[key]):
                         return False
-                elif DictConstraint.is_valid_dt_constraint(structure[key]):
-                    if not DictConstraint.static_validate(structure[key], value[key]):
+                elif DictConstraint.is_valid_dt_constraint(constraint[key]):
+                    if not DictConstraint.static_validate(constraint[key], value[key]):
                         return False
-                elif ListLikeConstraint.is_valid_lk_constraint(structure[key]):
-                    if not ListLikeConstraint.static_validate(structure[key], value[key]):
+                elif ListLikeConstraint.is_valid_lk_constraint(constraint[key]):
+                    if not ListLikeConstraint.static_validate(constraint[key], value[key]):
                         return False
-                elif Or.is_or_constraint(structure[key]):
-                    if not Or.validate(structure[key], value[key]):
+                elif Or.is_or_constraint(constraint[key]):
+                    if not Or.validate(constraint[key], value[key]):
                         return False
-                elif Check.is_check_constraint(structure[key]):
-                    if not Check.validate(structure[key], value[key]):
+                elif Check.is_check_constraint(constraint[key]):
+                    if not Check.validate(constraint[key], value[key]):
                         return False
                     
             else: # value do not contains key required
@@ -166,10 +261,10 @@ class DictConstraint:
 
 class ListLikeConstraint:
     """
-    `ListLikeConstraint` class. Constraint that specifies structure of a list or tuple.
+    `ListLikeConstraint` class. Constraint that specifies constraint of a list or tuple.
     
-    structure (constraint) can be very flexible.
-    Example of structure:
+    constraint (constraint) can be very flexible.
+    Example of constraint:
     [int, int, int]:
         [1,2,3] => accepted
         [1,2,3,4] => not accepted
@@ -217,29 +312,29 @@ class ListLikeConstraint:
         def __repr__(self) -> str:
             return f"Multiple({self.constraint}, {self.count})"
 
-    def __init__(self, structure: Union[list, tuple]) -> None:
-        self.structure = structure
+    def __init__(self, constraint: Union[list, tuple]) -> None:
+        self.constraint = constraint
     
     def is_constraint_valid(self) -> bool:
-        return ListLikeConstraint.is_valid_lk_constraint(self.structure)
+        return ListLikeConstraint.is_valid_lk_constraint(self.constraint)
 
     @staticmethod
-    def is_valid_lk_constraint(structure: Union[list, tuple]) -> bool:
+    def is_valid_lk_constraint(constraint: Union[list, tuple]) -> bool:
         """
         is list-like constraint valid
         """
 
-        if type(structure) not in [list, tuple]:
+        if type(constraint) not in [list, tuple]:
            return False
 
-        for c in structure:
+        for c in constraint:
             if type(c) in [list, tuple]: # if element is another list-like constraint
                 if not ListLikeConstraint.is_valid_lk_constraint(c):
                     return False
             elif type(c) == dict:
                 if not DictConstraint.is_valid_dt_constraint(c):
                     return False
-            elif type(c) not in [ type, ListLikeConstraint.Countless, ListLikeConstraint.Multiple ]: # acceptable type of elements in structure
+            elif type(c) not in [ type, ListLikeConstraint.Countless, ListLikeConstraint.Multiple ]: # acceptable type of elements in constraint
                 return False
         return True
 
@@ -247,22 +342,22 @@ class ListLikeConstraint:
         """
         Validate value
         """
-        return ListLikeConstraint.static_validate(self.structure, value)
+        return ListLikeConstraint.static_validate(self.constraint, value)
     
     @staticmethod
-    def static_validate(structure: Union[list, tuple], value) -> bool:
+    def static_validate(constraint: Union[list, tuple], value) -> bool:
         """
-        Validate whether value follows the structure
+        Validate whether value follows the constraint
         """
-        s_structure = ListLikeConstraint.simplify_constraint(structure)
-        if s_structure == None:
+        s_constraint = ListLikeConstraint.simplify_constraint(constraint)
+        if s_constraint == None:
             return False
         
         if type(value) not in [list, tuple]:
             return False
         
         offset = 0
-        for i, c in enumerate(s_structure):
+        for i, c in enumerate(s_constraint):
             value_i = i + offset
 
             if value_i >= len(value):
@@ -299,12 +394,12 @@ class ListLikeConstraint:
                         value_i = i + offset
 
         
-        if offset + len(s_structure) != len(value):
+        if offset + len(s_constraint) != len(value):
             return False
         return True
 
     @staticmethod
-    def simplify_constraint(structure: Union[list, tuple]) -> Union[None, list, tuple]:
+    def simplify_constraint(constraint: Union[list, tuple]) -> Union[None, list, tuple]:
         """
         Expands `Multiple` class into types ([Multiple(int, 3)] => [int, int, int])
 
@@ -313,17 +408,17 @@ class ListLikeConstraint:
 
         Note: function do not simplify recursively. Nested lf-constraint will not be simplified
         """
-        if not ListLikeConstraint.is_valid_lk_constraint(structure):
+        if not ListLikeConstraint.is_valid_lk_constraint(constraint):
             return None
         
-        structure_type = type(structure)
+        constraint_type = type(constraint)
 
-        def expand_mt(structure):
+        def expand_mt(constraint):
             """
-            Expand `Multiple` class in a structure (constraint)
+            Expand `Multiple` class in a constraint (constraint)
             """
             e = []
-            for c in structure:
+            for c in constraint:
                 if type(c) == ListLikeConstraint.Multiple:
                     for _ in range(c.count):
                         e.append(c.constraint)
@@ -331,7 +426,7 @@ class ListLikeConstraint:
                     e.append(c)
             return e
         
-        def get_ct_group_info(structure):
+        def get_ct_group_info(constraint):
             """
             Group `Countless` class. Assume there is no `Multiple` class.
 
@@ -343,14 +438,14 @@ class ListLikeConstraint:
             """
 
             result = []
-            ct_indexes = [ i for i, c in enumerate(structure) if type(c) == ListLikeConstraint.Countless]
+            ct_indexes = [ i for i, c in enumerate(constraint) if type(c) == ListLikeConstraint.Countless]
             for ct_i in ct_indexes:
-                new_countless = ListLikeConstraint.Countless(structure[ct_i].constraint, structure[ct_i].at_least)
+                new_countless = ListLikeConstraint.Countless(constraint[ct_i].constraint, constraint[ct_i].at_least)
                 group_start = 0
-                group_end = len(structure) - 1
+                group_end = len(constraint) - 1
                 # find the group_start
                 for s_i in range(ct_i - 1, -1, -1):
-                    c = structure[s_i]
+                    c = constraint[s_i]
                     if c == new_countless.constraint: # found type that is same as Countless' type
                         new_countless.at_least += 1
                     else: # found other types (no good no good)
@@ -358,8 +453,8 @@ class ListLikeConstraint:
                         break
                 
                 # find the group_end
-                for s_i in range(ct_i+1, len(structure)):
-                    c = structure[s_i]
+                for s_i in range(ct_i+1, len(constraint)):
+                    c = constraint[s_i]
                     if type(c) == ListLikeConstraint.Countless and c.constraint == new_countless.constraint: # found adjecent countless with same type
                         new_countless.at_least += c.at_least
                         ct_indexes.remove(s_i) # remove the Countless that will be grouped as it already grouped with this group
@@ -372,15 +467,15 @@ class ListLikeConstraint:
                 result.append((group_start, group_end, new_countless))
             return result
 
-        expanded = expand_mt(structure)
+        expanded = expand_mt(constraint)
         ct_groups = get_ct_group_info(expanded)
-        new_structure = []
+        new_constraint = []
         last_end = 0
         for start, end, ct in ct_groups:
-            new_structure = [ *new_structure, *expanded[last_end: start], ct ]
+            new_constraint = [ *new_constraint, *expanded[last_end: start], ct ]
             last_end = end + 1
-        new_structure = [ *new_structure, *expanded[last_end:] ]
-        return structure_type(new_structure)
+        new_constraint = [ *new_constraint, *expanded[last_end:] ]
+        return constraint_type(new_constraint)
         
         
 class Or:
