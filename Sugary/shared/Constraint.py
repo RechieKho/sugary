@@ -1,35 +1,84 @@
-"""
-Constraint for checking the type and structure of values
-"""
-
 from typing import Union
 from types import FunctionType
 
-class SimpleConstraint:
-    """
-    `SimpleConstraint` class. Constraint that only specifies type
+class TypeConstraint:
+    """A class that checks value's type using constraint
+    
+    Create an instance by passing in a type constraint. A type constraint is basically a type (str, int, and etc.)
+    The instance can be used to validate value by calling `validate` method. 
+    Value said to be valid when the value's type is equal to the type constraint (satisfies the constraint)
+
+    Attribute:
+    -----
+    constraint : type
+        The type constraint
+
+    Static Methods:
+    -----
+    is_type_constraint(constraint: any) -> bool
+        Check whether the constraint is a valid type constraint
+    static_validate(constraint: type, value: any) -> bool
+        Validate the value using the constraint
+
+    Methods:
+    -----
+    is_constraint_valid() -> bool
+        Check whether the instance's constraint is a valid type constraint.
+    validate(value: any) -> bool
+        Validate the value using the instance's constraint. 
     """
 
     def __init__(self, constraint: type) -> None:
         self.constraint = constraint
     
     def is_constraint_valid(self) -> bool:
-        return SimpleConstraint.is_simple_constraint(self.constraint)
+        """Check whether the instance's constraint is a valid type constraint
+        
+        Returns:
+            bool: True if the instance's constraint is valid, else False
+        """
+
+        return TypeConstraint.is_type_constraint(self.constraint)
     
     @staticmethod
-    def is_simple_constraint(constraint) -> bool:
+    def is_type_constraint(constraint) -> bool:
+        """Check whether the constraint is a valid type constraint
+        
+        Args:
+            constraint (any): constraint to be checked
+
+        Returns:
+            bool: True if the constraint is valid, else False
+        """
+
         return type(constraint) == type
 
     def validate(self, value) -> bool:
-        return SimpleConstraint.static_validate(self.constraint, value)
+        """Validate the value using the instance's constraint
+
+        Args:
+            value (any): value to be validated
+        
+        Returns: 
+            bool: whether the value's type is same as the instance's constraint, always return False if the constraint is not a type constraint
+        """
+
+        return TypeConstraint.static_validate(self.constraint, value)
     
     @staticmethod
     def static_validate(constraint: type, value) -> bool:
+        """Validate the value using the constraint
+        
+        Args:
+            constraint (type): the constraint used
+            value (any): value to be validated
+
+        Returns: 
+            bool: whether the value's type is same as the instance's constraint, always return False if the constraint is not a type constraint
         """
-        validate value
-        """
+
         # check whether is constraint valid
-        if not SimpleConstraint.is_simple_constraint(constraint):
+        if not TypeConstraint.is_type_constraint(constraint):
             return False
         
         return type(value) == constraint
@@ -93,8 +142,8 @@ class DictConstraint:
                 value_keys.remove(key) # remove checked key. if there still have keys after checking, is_excess = true
 
                 # Check
-                if SimpleConstraint.is_simple_constraint(structure[key]):
-                    if not SimpleConstraint.static_validate(structure[key], value[key]):
+                if TypeConstraint.is_type_constraint(structure[key]):
+                    if not TypeConstraint.static_validate(structure[key], value[key]):
                         return False
                 elif DictConstraint.is_valid_dt_constraint(structure[key]):
                     if not DictConstraint.static_validate(structure[key], value[key]):
@@ -149,8 +198,8 @@ class ListLikeConstraint:
             return f"Countless({self.constraint}, at least {self.at_least} elements)"
         
         def validate(self, value):
-            if SimpleConstraint.is_simple_constraint(self.constraint):
-                return SimpleConstraint.static_validate(self.constraint, value)
+            if TypeConstraint.is_type_constraint(self.constraint):
+                return TypeConstraint.static_validate(self.constraint, value)
             elif ListLikeConstraint.is_valid_lk_constraint(self.constraint):
                 return ListLikeConstraint.static_validate(self.constraint, value)
             elif DictConstraint.is_valid_dt_constraint(self.constraint):
@@ -219,8 +268,8 @@ class ListLikeConstraint:
             if value_i >= len(value):
                 return False
 
-            if SimpleConstraint.is_simple_constraint(c):
-                if not SimpleConstraint.static_validate(c,value[value_i]):
+            if TypeConstraint.is_type_constraint(c):
+                if not TypeConstraint.static_validate(c,value[value_i]):
                     return False
             elif ListLikeConstraint.is_valid_lk_constraint(c):
                 if not ListLikeConstraint.static_validate(c,value[value_i]):
@@ -348,8 +397,8 @@ class Or:
     
     def validate(self, value) -> bool:
         for c in self.constraint:
-            if SimpleConstraint.is_simple_constraint(c):
-                if SimpleConstraint.static_validate(c,value):
+            if TypeConstraint.is_type_constraint(c):
+                if TypeConstraint.static_validate(c,value):
                     return True
             elif ListLikeConstraint.is_valid_lk_constraint(c):
                 if ListLikeConstraint.static_validate(c,value):
