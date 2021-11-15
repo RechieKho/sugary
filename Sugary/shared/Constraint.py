@@ -18,7 +18,7 @@ class TypeConstraint:
 
     Static Methods:
     -----
-    is_type_constraint(constraint: any) -> bool
+    is_valid_type_constraint(constraint: any) -> bool
         Check whether the constraint is a valid type constraint
     static_validate(constraint: type, value: any) -> bool
         Validate the value using the constraint
@@ -41,10 +41,10 @@ class TypeConstraint:
             bool: True if the instance's constraint is valid, else False
         """
 
-        return TypeConstraint.is_type_constraint(self.constraint)
+        return TypeConstraint.is_valid_type_constraint(self.constraint)
 
     @staticmethod
-    def is_type_constraint(constraint) -> bool:
+    def is_valid_type_constraint(constraint) -> bool:
         """Check whether the constraint is a valid type constraint
 
         Args:
@@ -81,7 +81,7 @@ class TypeConstraint:
         """
 
         # check whether is constraint valid
-        if not TypeConstraint.is_type_constraint(constraint):
+        if not TypeConstraint.is_valid_type_constraint(constraint):
             return False
 
         return type(value) == constraint
@@ -134,9 +134,9 @@ class DictConstraint:
     Static method:
     -----
     is_valid_dt_constraint(constraint: any) -> bool
-        Check whether the instance's constraint is a valid dictionary constraint.
+        Check whether the constraint is a valid dictionary constraint.
     static_validate(constraint: dict, value: any, accept_excess = True, accept_scarcity = False)
-        Validate the value using the instance's constraint
+        Validate the value using the constraint
 
     Method:
     -----
@@ -188,6 +188,7 @@ class DictConstraint:
                 return False
 
             value_c = constraint[key]
+            # TODO: there is no if-else for 'or' constraint and 'check' constraint, fix this !!
             if type(value_c) == list:
                 if not ListLikeConstraint.is_valid_lk_constraint(value_c):
                     return False
@@ -248,7 +249,7 @@ class DictConstraint:
                 )  # remove checked key. if there still have keys after checking, is_excess = true
 
                 # Check
-                if TypeConstraint.is_type_constraint(constraint[key]):
+                if TypeConstraint.is_valid_type_constraint(constraint[key]):
                     if not TypeConstraint.static_validate(constraint[key], value[key]):
                         return False
                 elif DictConstraint.is_valid_dt_constraint(constraint[key]):
@@ -259,10 +260,10 @@ class DictConstraint:
                         constraint[key], value[key]
                     ):
                         return False
-                elif Or.is_or_constraint(constraint[key]):
+                elif Or.is_valid_or_constraint(constraint[key]):
                     if not Or.validate(constraint[key], value[key]):
                         return False
-                elif Check.is_check_constraint(constraint[key]):
+                elif Check.is_valid_check_constraint(constraint[key]):
                     if not Check.validate(constraint[key], value[key]):
                         return False
 
@@ -312,7 +313,7 @@ class ListLikeConstraint:
 
     Attribute:
     -----
-    constraint : type
+    constraint : list
         The list-like constraint
 
     Static Methods:
@@ -352,6 +353,8 @@ class ListLikeConstraint:
                 3. list-like constraint
                 4. 'or' constraint
                 5. 'check' constraint
+        at_lease : int
+            at least how many element in the list (value) that satisfies constraint so it is considered accepted. 
 
         Method:
         -----
@@ -367,6 +370,8 @@ class ListLikeConstraint:
         def __repr__(self) -> str:
             return f"Countless({self.constraint}, at least {self.at_least} elements)"
 
+        # TODO: create a method that checks the validity of the constraint
+
         def validate(self, value) -> bool:
             """Returns the result of validation based on type of constraint
 
@@ -378,24 +383,39 @@ class ListLikeConstraint:
             Returns:
                 bool: result of validation
             """
-            if TypeConstraint.is_type_constraint(self.constraint):
+            if TypeConstraint.is_valid_type_constraint(self.constraint):
                 return TypeConstraint.static_validate(self.constraint, value)
             elif ListLikeConstraint.is_valid_lk_constraint(self.constraint):
                 return ListLikeConstraint.static_validate(self.constraint, value)
             elif DictConstraint.is_valid_dt_constraint(self.constraint):
                 return DictConstraint.static_validate(self.constraint, value)
-            elif Or.is_or_constraint(self.constraint):
-                return Or.static_validate(self.constraint, value)
-            elif Check.is_check_constraint(self.constraint):
+            elif Or.is_valid_or_constraint(self.constraint):
+                return Or.static_validate(self.constraint, value) # TODO: fix Or.static_validate
+            elif Check.is_valid_check_constraint(self.constraint):
                 return Check.static_validate(self.constraint, value)
             return False
 
     class Multiple:
-        """A class that represents multiple constraints in a list-like constraint"""
+        """A class that represents multiple constraints in a list-like constraint
+        
+        Attributes:
+        -----
+        constraint
+            it can be a
+                1. a type constraint
+                2. dictionary constraint
+                3. list-like constraint
+                4. 'or' constraint
+                5. 'check' constraint
+        count : int
+            Number of constraint it represents.
+        """
 
-        def __init__(self, constraint: type, count: int) -> None:
+        def __init__(self, constraint, count: int) -> None:
             self.constraint = constraint
             self.count = count
+
+        # TODO: create a method that checks the validity of the constraint
 
         def __repr__(self) -> str:
             return f"Multiple({self.constraint}, {self.count})"
@@ -415,6 +435,16 @@ class ListLikeConstraint:
     def is_valid_lk_constraint(constraint) -> bool:
         """Check whether the constraint is a valid list-like constraint
 
+        A list-like constraint is basically a list or a tuple.
+        A list-like constraint's element must be either:
+            1. a type constraint
+            2. dictionary constraint
+            3. list-like constraint
+            4. 'or' constraint
+            5. 'check' constraint
+            6. instance of `Countless` class
+            7. instance of `Multiple` class
+
         Args:
             constraint (any): constraint to be checked
 
@@ -432,6 +462,8 @@ class ListLikeConstraint:
             elif type(c) == dict:
                 if not DictConstraint.is_valid_dt_constraint(c):
                     return False
+            # TODO: if c is Countless or Multiple, call the method that checks the validity of the constraint
+            # TODO: Not checking 'or' constraint and 'check' constraint
             elif type(c) not in [
                 type,
                 ListLikeConstraint.Countless,
@@ -477,7 +509,7 @@ class ListLikeConstraint:
             if value_i >= len(value):
                 return False
 
-            if TypeConstraint.is_type_constraint(c):
+            if TypeConstraint.is_valid_type_constraint(c):
                 if not TypeConstraint.static_validate(c, value[value_i]):
                     return False
             elif ListLikeConstraint.is_valid_lk_constraint(c):
@@ -486,10 +518,10 @@ class ListLikeConstraint:
             elif DictConstraint.is_valid_dt_constraint(c):
                 if not DictConstraint.static_validate(c, value[value_i]):
                     return False
-            elif Or.is_or_constraint(c):
+            elif Or.is_valid_or_constraint(c):
                 if not Or.static_validate(c, value[value_i]):
                     return False
-            elif Check.is_check_constraint(c):
+            elif Check.is_valid_check_constraint(c):
                 if not Check.static_validate(c, value[value_i]):
                     return False
             elif type(c) == ListLikeConstraint.Countless:
@@ -507,6 +539,8 @@ class ListLikeConstraint:
                         offset += 1
                         value_i = i + offset
 
+        # TODO: line of code below is kind of extra, good for debug but bad for practical uses.
+        #       It is only good for checking whether the algorithm has flaw or not.
         if offset + len(s_constraint) != len(value):
             return False
         return True
@@ -640,8 +674,8 @@ class Or:
 
     Static Method:
     -----
-    is_or_constraint(constraint: any) -> bool
-        Check whether constraint is an 'or' constraint
+    is_valid_or_constraint(constraint: any) -> bool
+        Check whether constraint is a valid 'or' constraint
 
     Method:
     -----
@@ -652,17 +686,20 @@ class Or:
     def __init__(self, *constraint) -> None:
         self.constraint = constraint
 
+    # TODO: Add a method that checks the validity of the 'or' constraint, check all constraint in self.constraint
+
     @staticmethod
-    def is_or_constraint(constraint) -> bool:
-        """Check whether constraint is an 'or' cosntraint
+    def is_valid_or_constraint(constraint) -> bool:
+        """Check whether constraint is a valid 'or' cosntraint
 
         Args:
             constraint (any): constraint to be checked
 
         Returns:
-            bool: whether constraint is an 'or' constraint
+            bool: whether constraint is an valid 'or' constraint
         """
 
+        # TODO: check all constraint in self.constraint is valid
         return type(constraint) == Or
 
     def validate(self, value) -> bool:
@@ -677,7 +714,7 @@ class Or:
 
         # TODO: make it validate 'or' constraint and 'check' constraint
         for c in self.constraint:
-            if TypeConstraint.is_type_constraint(c):
+            if TypeConstraint.is_valid_type_constraint(c):
                 if TypeConstraint.static_validate(c, value):
                     return True
             elif ListLikeConstraint.is_valid_lk_constraint(c):
@@ -701,8 +738,8 @@ class Check:
 
     Static Method:
     -----
-    is_check_constraint(constraint: any) -> bool
-        Check whether the constraint is a check constraint
+    is_valid_check_constraint(constraint: any) -> bool
+        Check whether the constraint is a valid check constraint
     static_validate(constraint: FunctionType, value: any) -> bool
         Validate the value using the constraint
 
@@ -725,17 +762,17 @@ class Check:
             bool: whether the instance's constraint is a check constraint
         """
 
-        return Check.is_check_constraint(self.constraint)
+        return Check.is_valid_check_constraint(self.constraint)
 
     @staticmethod
-    def is_check_constraint(constraint) -> bool:
-        """Check whether the constraint is a check constraint
+    def is_valid_check_constraint(constraint) -> bool:
+        """Check whether the constraint is a valid check constraint
 
         Args:
             constraint (any): constraint to be checked
 
         Returns:
-            bool: whether the constraint is a check constraint
+            bool: whether the constraint is a valid check constraint
         """
 
         # TODO: inspect function's argument
@@ -769,7 +806,7 @@ class Check:
         Returns:
             bool: the result of the check constrain function call
         """
-        if not Check.is_check_constraint(constraint):
+        if not Check.is_valid_check_constraint(constraint):
             return False
 
         return constraint(value)
