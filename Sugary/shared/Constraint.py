@@ -1,7 +1,6 @@
 from typing import Union
 from types import FunctionType
 
-# TODO: function that returns type of constraint.
 
 
 class TypeConstraint:
@@ -188,14 +187,15 @@ class DictConstraint:
                 return False
 
             value_c = constraint[key]
-            # TODO: there is no if-else for 'or' constraint and 'check' constraint, fix this !!
-            if type(value_c) == list:
-                if not ListLikeConstraint.is_valid_lk_constraint(value_c):
-                    return False
-            elif type(value_c) == dict:
-                if not DictConstraint.is_valid_dt_constraint(value_c):
-                    return False
-            elif type(value_c) != type:
+            if (
+                TypeConstraint.is_valid_type_constraint(value_c) or
+                DictConstraint.is_valid_dt_constraint(value_c) or
+                ListLikeConstraint.is_valid_lk_constraint(value_c) or
+                Or.is_constraint_valid(value_c) or
+                Check.is_constraint_valid(value_c)
+            ):
+                continue
+            else:
                 return False
         return True
 
@@ -371,6 +371,10 @@ class ListLikeConstraint:
             return f"Countless({self.constraint}, at least {self.at_least} elements)"
 
         # TODO: create a method that checks the validity of the constraint
+    
+        def is_constraint_valid(self) -> bool:
+            """Check the validity of the self.constraint
+            """
 
         def validate(self, value) -> bool:
             """Returns the result of validation based on type of constraint
@@ -539,10 +543,6 @@ class ListLikeConstraint:
                         offset += 1
                         value_i = i + offset
 
-        # TODO: line of code below is kind of extra, good for debug but bad for practical uses.
-        #       It is only good for checking whether the algorithm has flaw or not.
-        if offset + len(s_constraint) != len(value):
-            return False
         return True
 
     @staticmethod
@@ -665,7 +665,7 @@ class Or:
     Attributes:
     -----
     constraint : list
-        A list of constraint, the element can only be:
+        A list or a tuple of constraint, the element can only be:
             1. a type constraint
             2. dictionary constraint
             3. list-like constraint
@@ -686,11 +686,49 @@ class Or:
     def __init__(self, *constraint) -> None:
         self.constraint = constraint
 
-    # TODO: Add a method that checks the validity of the 'or' constraint, check all constraint in self.constraint
+    def is_constraint_valid(self) -> bool:
+        """Check whether this 'or' constraint is a valid 'or' constraint
+        
+        'or' constraint must have a tuple or a list or constraint (self.constraint), where constraint list can only contains:
+            1. a type constraint
+            2. dictionary constraint
+            3. list-like constraint
+            4. 'or' constraint (using nested 'or' constraint produce same result but wastes resources, stupid)
+            5. 'check' constraint
+        
+        Returns:
+            bool: whether this 'or' constraint is a valid 'or' constraint
+
+        """
+
+        if type(self.constraint) not in [list, tuple]:
+           return False
+
+        for c in self.constraint:
+            if (
+                TypeConstraint.is_valid_type_constraint(c) or
+                DictConstraint.is_valid_dt_constraint(c) or
+                ListLikeConstraint.is_valid_lk_constraint(c) or
+                Or.is_valid_or_constraint(c) or
+                Check.is_valid_check_constraint(c) 
+            ):
+                continue
+            else:
+                return False
+        
+        return True
 
     @staticmethod
     def is_valid_or_constraint(constraint) -> bool:
         """Check whether constraint is a valid 'or' cosntraint
+
+        An 'or' constraint is an instance of `Or` class which stores a constraint list.
+        The constraint list can be a list or a tuple, which can contain
+            1. a type constraint
+            2. dictionary constraint
+            3. list-like constraint
+            4. 'or' constraint (using nested 'or' constraint produce same result but wastes resources, stupid)
+            5. 'check' constraint
 
         Args:
             constraint (any): constraint to be checked
@@ -699,8 +737,10 @@ class Or:
             bool: whether constraint is an valid 'or' constraint
         """
 
-        # TODO: check all constraint in self.constraint is valid
-        return type(constraint) == Or
+        if type(constraint) != Or:
+            return False
+
+        return constraint.is_constraint_valid()
 
     def validate(self, value) -> bool:
         """Validate the value using the instance (instance itself is a constraint)
@@ -712,7 +752,6 @@ class Or:
             bool: whether value satisfies the constraint
         """
 
-        # TODO: make it validate 'or' constraint and 'check' constraint
         for c in self.constraint:
             if TypeConstraint.is_valid_type_constraint(c):
                 if TypeConstraint.static_validate(c, value):
@@ -722,6 +761,12 @@ class Or:
                     return True
             elif DictConstraint.is_valid_dt_constraint(c):
                 if DictConstraint.static_validate(c, value):
+                    return True
+            elif Or.is_valid_or_constraint(c):
+                if c.validate(value):
+                    return True
+            elif Check.is_valid_check_constraint(c):
+                if Check.static_validate(c, value):
                     return True
         return False
 
@@ -810,3 +855,26 @@ class Check:
             return False
 
         return constraint(value)
+
+def get_constraint_class(constraint) -> Union[TypeConstraint, DictConstraint, ListLikeConstraint, Or, Check, None]:
+    """Get the class that handles the constraint
+    
+    Args:
+        constraint (any): constraint to be validated
+    
+    Returns:
+        Union[TypeConstraint, DictConstraint, ListLikeConstraint, Or, Check, None]: class that handles the constraint
+
+    """
+    if TypeConstraint.is_valid_type_constraint(constraint):
+        return TypeConstraint
+    elif DictConstraint.is_valid_dt_constraint(constraint):
+        return DictConstraint
+    elif ListLikeConstraint.is_valid_lk_constraint(constraint):
+        return ListLikeConstraint
+    elif Or.is_valid_or_constraint(constraint):
+        return Or
+    elif Check.is_valid_check_constraint(constraint):
+        return Check
+    else:
+        return None
