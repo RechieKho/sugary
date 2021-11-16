@@ -1,12 +1,36 @@
+"""A python module that provides a simple way to validate value through constraint.
+
+There are 5 basic constraint:
+1. type constraint
+2. dictionary constraint
+3. list-like constraint
+4. 'or' constraint
+5. 'check' constraint
+
+and each constraint can be used to validate value using these classes:
+1. TypeConstraint (for validating value using a type constraint)
+2. DictConstraint (for validating dictionaries using a dictionary constraint)
+3. ListLikeConstraint (for validating tuples or lists using a list-like constraint)
+4. Or (for validating values using constraint that is a "union" of all basic constraint)
+5. Check (for validating values according to user's desire)
+
+A type constraint checks for value's type. 
+A dictionary constraint checks for dictionary's structure (how key value pair should be).
+A list-like constraint checks for structure of a list or a tuple.
+An 'or' constraint let user to combines constraint. 
+A 'check' constraint let user defines how to validate value.
+
+Please read the docstring of each constraint's classes for furthur information.
+"""
+
 from typing import Union
 from types import FunctionType
-
 
 
 class TypeConstraint:
     """A class that checks value's type using constraint
 
-    Create an instance by passing in a type constraint. A type constraint is basically a type (str, int, and etc.)
+    Create an instance by passing in a type constraint. A type constraint is basically a type (`str`, `int`, and etc.)
     The instance can be used to validate value by calling `validate` method.
     Value said to be valid when the value's type is equal to the type constraint (satisfies the constraint)
 
@@ -159,6 +183,9 @@ class DictConstraint:
         1. A dictionary
         2. The keys must not be a type (int class, str class)
         3. The value must be either a type constraint, dictionary constraint, list-like constraint, 'or' constraint, or 'check' constraint.
+
+        Returns:
+            bool: whether the instance's constraint is a valid dictionary constraint
         """
 
         return DictConstraint.is_valid_dt_constraint(self.constraint)
@@ -187,13 +214,9 @@ class DictConstraint:
                 return False
 
             value_c = constraint[key]
-            if (
-                TypeConstraint.is_valid_type_constraint(value_c) or
-                DictConstraint.is_valid_dt_constraint(value_c) or
-                ListLikeConstraint.is_valid_lk_constraint(value_c) or
-                Or.is_constraint_valid(value_c) or
-                Check.is_constraint_valid(value_c)
-            ):
+            if get_constraint_class(
+                value_c
+            ):  # if there is a class for the constraint, it is a valid constraint
                 continue
             else:
                 return False
@@ -204,12 +227,13 @@ class DictConstraint:
 
         `value[key]` will be validated using the `constraint[key]`.
         Read Documentation of `DictConstraint` class for example.
+        Always return False if the instance's constraint is not a valid dictionary constraint.
 
         Args:
             value (any): value to be validated
 
         Returns:
-            bool: whether the value satisfy the dictionary constraint
+            bool: whether the value satisfy the dictionary constraint, always return False if the instance's constraint is not a valid dictionary constraint.
         """
 
         return DictConstraint.static_validate(
@@ -224,6 +248,7 @@ class DictConstraint:
 
         `value[key]` will be validated using the `constraint[key]`.
         Read Documentation of `DictConstraint` class for example.
+        Always return False if the instance's constraint is not a valid dictionary constraint.
 
         Args:
             constraint (dict): dictionary constraint used
@@ -232,7 +257,7 @@ class DictConstraint:
             accept_scarcity: accept value doesn't contains key in constraint
 
         Returns:
-            bool: whether the value satisfy the dictionary constraint
+            bool: whether the value satisfy the dictionary constraint, always return False if the instance's constraint is not a valid dictionary constraint.
         """
 
         if not DictConstraint.is_valid_dt_constraint(constraint):
@@ -347,18 +372,20 @@ class ListLikeConstraint:
         Attributes:
         -----
         constraint
-            it can be a
+            it can only be a
                 1. a type constraint
                 2. dictionary constraint
                 3. list-like constraint
                 4. 'or' constraint
                 5. 'check' constraint
         at_lease : int
-            at least how many element in the list (value) that satisfies constraint so it is considered accepted. 
+            at least how many element in the list (value) that satisfies constraint so it is considered accepted.
 
         Method:
         -----
-        validate(value: any) -> bool:
+        is_constraint_valid() -> bool
+            Check the validity of the self.constraint
+        validate(value: any) -> bool
             Return the result of validation.
             If the constraint is not any kind of constraint, returns False.
         """
@@ -370,11 +397,21 @@ class ListLikeConstraint:
         def __repr__(self) -> str:
             return f"Countless({self.constraint}, at least {self.at_least} elements)"
 
-        # TODO: create a method that checks the validity of the constraint
-    
         def is_constraint_valid(self) -> bool:
             """Check the validity of the self.constraint
+
+            self.constraint can only be:
+                1. a type constraint
+                2. dictionary constraint
+                3. list-like constraint
+                4. 'or' constraint
+                5. 'check' constraint
+
+            Returns:
+                bool: whether self.constraint is valid
             """
+
+            return not not get_constraint_class(self.constraint)
 
         def validate(self, value) -> bool:
             """Returns the result of validation based on type of constraint
@@ -387,6 +424,7 @@ class ListLikeConstraint:
             Returns:
                 bool: result of validation
             """
+
             if TypeConstraint.is_valid_type_constraint(self.constraint):
                 return TypeConstraint.static_validate(self.constraint, value)
             elif ListLikeConstraint.is_valid_lk_constraint(self.constraint):
@@ -394,18 +432,18 @@ class ListLikeConstraint:
             elif DictConstraint.is_valid_dt_constraint(self.constraint):
                 return DictConstraint.static_validate(self.constraint, value)
             elif Or.is_valid_or_constraint(self.constraint):
-                return Or.static_validate(self.constraint, value) # TODO: fix Or.static_validate
+                return self.constraint.validate(value)
             elif Check.is_valid_check_constraint(self.constraint):
                 return Check.static_validate(self.constraint, value)
             return False
 
     class Multiple:
         """A class that represents multiple constraints in a list-like constraint
-        
+
         Attributes:
         -----
         constraint
-            it can be a
+            it can only be a
                 1. a type constraint
                 2. dictionary constraint
                 3. list-like constraint
@@ -413,16 +451,35 @@ class ListLikeConstraint:
                 5. 'check' constraint
         count : int
             Number of constraint it represents.
+
+        Method:
+        -----
+        is_constraint_valid() -> bool
+            Check the validity of the self.constraint
         """
 
         def __init__(self, constraint, count: int) -> None:
             self.constraint = constraint
             self.count = count
 
-        # TODO: create a method that checks the validity of the constraint
-
         def __repr__(self) -> str:
             return f"Multiple({self.constraint}, {self.count})"
+
+        def is_constraint_valid(self) -> bool:
+            """Check the validity of the self.constraint
+
+            self.constraint can only be:
+                1. a type constraint
+                2. dictionary constraint
+                3. list-like constraint
+                4. 'or' constraint
+                5. 'check' constraint
+
+            Returns:
+                bool: whether self.constraint is valid
+            """
+
+            return not not get_constraint_class(self.constraint)
 
     def __init__(self, constraint: Union[list, tuple]) -> None:
         self.constraint = constraint
@@ -460,19 +517,15 @@ class ListLikeConstraint:
             return False
 
         for c in constraint:
-            if type(c) in [list, tuple]:  # if element is another list-like constraint
-                if not ListLikeConstraint.is_valid_lk_constraint(c):
-                    return False
-            elif type(c) == dict:
-                if not DictConstraint.is_valid_dt_constraint(c):
-                    return False
-            # TODO: if c is Countless or Multiple, call the method that checks the validity of the constraint
-            # TODO: Not checking 'or' constraint and 'check' constraint
-            elif type(c) not in [
-                type,
-                ListLikeConstraint.Countless,
-                ListLikeConstraint.Multiple,
-            ]:  # acceptable type of elements in constraint
+            if get_constraint_class(c) or (
+                (
+                    type(c) == ListLikeConstraint.Countless
+                    or type(c) == ListLikeConstraint.Multiple
+                )
+                and c.is_constraint_valid()
+            ):
+                continue
+            else:
                 return False
         return True
 
@@ -543,6 +596,8 @@ class ListLikeConstraint:
                         offset += 1
                         value_i = i + offset
 
+        if len(s_constraint) + offset != len(value):
+            return False
         return True
 
     @staticmethod
@@ -688,34 +743,28 @@ class Or:
 
     def is_constraint_valid(self) -> bool:
         """Check whether this 'or' constraint is a valid 'or' constraint
-        
+
         'or' constraint must have a tuple or a list or constraint (self.constraint), where constraint list can only contains:
             1. a type constraint
             2. dictionary constraint
             3. list-like constraint
             4. 'or' constraint (using nested 'or' constraint produce same result but wastes resources, stupid)
             5. 'check' constraint
-        
+
         Returns:
             bool: whether this 'or' constraint is a valid 'or' constraint
 
         """
 
         if type(self.constraint) not in [list, tuple]:
-           return False
+            return False
 
         for c in self.constraint:
-            if (
-                TypeConstraint.is_valid_type_constraint(c) or
-                DictConstraint.is_valid_dt_constraint(c) or
-                ListLikeConstraint.is_valid_lk_constraint(c) or
-                Or.is_valid_or_constraint(c) or
-                Check.is_valid_check_constraint(c) 
-            ):
+            if get_constraint_class(c):
                 continue
             else:
                 return False
-        
+
         return True
 
     @staticmethod
@@ -774,7 +823,11 @@ class Or:
 class Check:
     """A class that checks value through check constraint
 
-    The check constraint is a function that accepts a value as an argument
+    The check constraint is a function that accepts only one value as an argument.
+    The value to be validated will be passed into check constraint as an argument.
+    If check constraint returns true, value satisfies the check constraint.
+    If check constraint returns false, value does not satisfies the check constraint.
+    It is like a user-defined constraint.
 
     Attributes:
     -----
@@ -820,8 +873,7 @@ class Check:
             bool: whether the constraint is a valid check constraint
         """
 
-        # TODO: inspect function's argument
-        return type(constraint) == FunctionType
+        return type(constraint) == FunctionType and constraint.__code__.co_argcount == 1
 
     def validate(self, value) -> bool:
         """Validate the value using the instance's check constraint
@@ -856,12 +908,15 @@ class Check:
 
         return constraint(value)
 
-def get_constraint_class(constraint) -> Union[TypeConstraint, DictConstraint, ListLikeConstraint, Or, Check, None]:
+
+def get_constraint_class(
+    constraint,
+) -> Union[TypeConstraint, DictConstraint, ListLikeConstraint, Or, Check, None]:
     """Get the class that handles the constraint
-    
+
     Args:
         constraint (any): constraint to be validated
-    
+
     Returns:
         Union[TypeConstraint, DictConstraint, ListLikeConstraint, Or, Check, None]: class that handles the constraint
 
