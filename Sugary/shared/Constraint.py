@@ -27,6 +27,26 @@ from typing import Union
 from types import FunctionType
 
 
+class InvalidConstraintError:
+
+    def __init__(self, constraint, constraint_class: type) -> None:
+        self.constraint = constraint
+        self.constraint_class = constraint_class
+    
+    def get_error(self) -> str:
+        return f"The constraint, '{self.constraint}', is not a valid '{self.constraint_class.__name__}'"
+    
+    def __repr__(self) -> str:
+        return f"InvalidConstraintError({self.get_error()})"
+
+class UnsatisfiedError:
+
+    def __init__(self, err) -> None:
+        self.err = err
+    
+    def __repr__(self) -> str:
+        return f"UnsatisfiedError({self.err})"
+    
 class TypeConstraint:
     """A class that checks value's type using constraint
 
@@ -43,14 +63,14 @@ class TypeConstraint:
     -----
     is_valid_type_constraint(constraint: any) -> bool
         Check whether the constraint is a valid type constraint
-    static_validate(constraint: type, value: any) -> bool
+    static_validate(constraint: type, value: any) -> Union[bool, InvalidConstraintError, UnsatisfiedError]
         Validate the value using the constraint
 
     Methods:
     -----
     is_constraint_valid() -> bool
         Check whether the instance's constraint is a valid type constraint.
-    validate(value: any) -> bool
+    validate(value: any) -> Union[bool, InvalidConstraintError, UnsatisfiedError]
         Validate the value using the instance's constraint.
     """
 
@@ -79,20 +99,20 @@ class TypeConstraint:
 
         return type(constraint) == type
 
-    def validate(self, value) -> bool:
+    def validate(self, value) -> Union[bool, InvalidConstraintError, UnsatisfiedError]:
         """Validate the value using the instance's constraint
 
         Args:
             value (any): value to be validated
 
         Returns:
-            bool: whether the value's type is same as the instance's constraint, always return False if the constraint is not a type constraint
+            Union[bool, InvalidConstraintError, UnsatisfiedError]: if value is accepted, return False, else return an instance of error class (InvalidConstraintError or UnsatisfiedError)
         """
 
         return TypeConstraint.static_validate(self.constraint, value)
 
     @staticmethod
-    def static_validate(constraint: type, value) -> bool:
+    def static_validate(constraint: type, value) -> Union[bool, InvalidConstraintError, UnsatisfiedError]:
         """Validate the value using the constraint
 
         Args:
@@ -100,14 +120,14 @@ class TypeConstraint:
             value (any): value to be validated
 
         Returns:
-            bool: whether the value's type is same as the instance's constraint, always return False if the constraint is not a type constraint
+            Union[bool, InvalidConstraintError, UnsatisfiedError]: if value is accepted, return False, else return an instance of error class (InvalidConstraintError or UnsatisfiedError)
         """
 
         # check whether is constraint valid
         if not TypeConstraint.is_valid_type_constraint(constraint):
-            return False
+            return InvalidConstraintError(constraint, TypeConstraint)
 
-        return type(value) == constraint
+        return type(value) != constraint and UnsatisfiedError(f"Expecting the value's type to be '{constraint.__name__}' but the type of value '{value}' is '{type(value).__name__}'")
 
 
 class DictConstraint:
@@ -158,14 +178,14 @@ class DictConstraint:
     -----
     is_valid_dt_constraint(constraint: any) -> bool
         Check whether the constraint is a valid dictionary constraint.
-    static_validate(constraint: dict, value: any, accept_excess = True, accept_scarcity = False)
+    static_validate(constraint: dict, value: any, accept_excess = True, accept_scarcity = False) -> Union[bool, InvalidConstraintError, UnsatisfiedError]
         Validate the value using the constraint
 
     Method:
     -----
     is_constraint_valid(self) -> bool
         Check whether the instance's constraint is a valid dictionary constraint.
-    validate(value: any) -> bool
+    validate(value: any) -> Union[bool, InvalidConstraintError, UnsatisfiedError]
         Validate the value using the instance's constraint
     """
 
@@ -222,7 +242,7 @@ class DictConstraint:
                 return False
         return True
 
-    def validate(self, value):
+    def validate(self, value) -> Union[bool, InvalidConstraintError, UnsatisfiedError]:
         """Validate the value using the instance's constraint
 
         `value[key]` will be validated using the `constraint[key]`.
@@ -233,7 +253,7 @@ class DictConstraint:
             value (any): value to be validated
 
         Returns:
-            bool: whether the value satisfy the dictionary constraint, always return False if the instance's constraint is not a valid dictionary constraint.
+            Union[bool, InvalidConstraintError, UnsatisfiedError]: if no complain, return False, else returns error.
         """
 
         return DictConstraint.static_validate(
@@ -243,7 +263,7 @@ class DictConstraint:
     @staticmethod
     def static_validate(
         constraint: dict, value: dict, accept_excess=True, accept_scarcity=False
-    ) -> bool:
+    ) -> Union[bool, InvalidConstraintError, UnsatisfiedError]:
         """Validate the value using the instance's constraint
 
         `value[key]` will be validated using the `constraint[key]`.
@@ -257,14 +277,14 @@ class DictConstraint:
             accept_scarcity: accept value doesn't contains key in constraint
 
         Returns:
-            bool: whether the value satisfy the dictionary constraint, always return False if the instance's constraint is not a valid dictionary constraint.
+            Union[bool, InvalidConstraintError, UnsatisfiedError]: if no complain, return False, else returns error.
         """
 
         if not DictConstraint.is_valid_dt_constraint(constraint):
-            return False
+            return InvalidConstraintError(constraint, DictConstraint)
 
         if type(value) != dict:
-            return False
+            return UnsatisfiedError(f"Expecting the value to be a 'dict' but the type of value '{value}' is '{type(value).__name__}'")
 
         value_keys = list(value.keys())
         for key in constraint:
@@ -275,28 +295,33 @@ class DictConstraint:
 
                 # Check
                 if TypeConstraint.is_valid_type_constraint(constraint[key]):
-                    if not TypeConstraint.static_validate(constraint[key], value[key]):
-                        return False
+                    err = TypeConstraint.static_validate(constraint[key], value[key])
+                    if err:
+                        return err
                 elif DictConstraint.is_valid_dt_constraint(constraint[key]):
-                    if not DictConstraint.static_validate(constraint[key], value[key]):
-                        return False
+                    err = DictConstraint.static_validate(constraint[key], value[key])
+                    if err:
+                        return err
                 elif ListLikeConstraint.is_valid_lk_constraint(constraint[key]):
-                    if not ListLikeConstraint.static_validate(
+                    err = ListLikeConstraint.static_validate(
                         constraint[key], value[key]
-                    ):
-                        return False
+                    )
+                    if err:
+                        return err
                 elif Or.is_valid_or_constraint(constraint[key]):
-                    if not Or.validate(constraint[key], value[key]):
-                        return False
+                    err = Or.validate(constraint[key], value[key])
+                    if err:
+                        return err
                 elif Check.is_valid_check_constraint(constraint[key]):
-                    if not Check.validate(constraint[key], value[key]):
-                        return False
+                    err = Check.validate(constraint[key], value[key])
+                    if err:
+                        return err
 
             else:  # value do not contains key required
                 if not accept_scarcity:
-                    return False
+                    return UnsatisfiedError(f"The value '{value}' do not contains '{key}'")
 
-        return not (bool(len(value_keys)) and not accept_excess)
+        return (bool(len(value_keys)) and not accept_excess) and UnsatisfiedError(f"The value '{value}' contains extra keys")
 
 
 class ListLikeConstraint:
@@ -345,7 +370,7 @@ class ListLikeConstraint:
     -----
     is_valid_lk_constraint(constraint: any) -> bool
         Check whether the constraint is a valid list-like constraint
-    static_validate(constraint: Union[list, tuple], value: any) -> bool
+    static_validate(constraint: Union[list, tuple], value: any) -> Union[bool, UnsatisfiedError, InvalidConstraintError]
         Validate the value using the constraint
     simplify_constraint(constraint: Union[list, tuple]) -> Union[None, list, tuple]
         Returns simplified version of list-like constraint. Returns None if the constraint given is invalid.
@@ -361,7 +386,7 @@ class ListLikeConstraint:
     -----
     is_constraint_valid() -> bool
         Check whether the instance's constraint is a valid list-like constraint.
-    validate(value: any) -> bool
+    validate(value: any) -> Union[bool, UnsatisfiedError, InvalidConstraintError]
         Validate the value using the instance's list-like constraint.
 
     """
@@ -426,15 +451,15 @@ class ListLikeConstraint:
             """
 
             if TypeConstraint.is_valid_type_constraint(self.constraint):
-                return TypeConstraint.static_validate(self.constraint, value)
+                return not TypeConstraint.static_validate(self.constraint, value)
             elif ListLikeConstraint.is_valid_lk_constraint(self.constraint):
-                return ListLikeConstraint.static_validate(self.constraint, value)
+                return not ListLikeConstraint.static_validate(self.constraint, value)
             elif DictConstraint.is_valid_dt_constraint(self.constraint):
-                return DictConstraint.static_validate(self.constraint, value)
+                return not DictConstraint.static_validate(self.constraint, value)
             elif Or.is_valid_or_constraint(self.constraint):
-                return self.constraint.validate(value)
+                return not self.constraint.validate(value)
             elif Check.is_valid_check_constraint(self.constraint):
-                return Check.static_validate(self.constraint, value)
+                return not Check.static_validate(self.constraint, value)
             return False
 
     class Multiple:
@@ -529,20 +554,20 @@ class ListLikeConstraint:
                 return False
         return True
 
-    def validate(self, value) -> bool:
+    def validate(self, value) -> Union[bool, UnsatisfiedError, InvalidConstraintError]:
         """Validate the value using the instance's list-like constraint.
 
         Args:
             value (any): value to be validated
 
         Returns:
-            bool: Whether value satisfies list-like constraint
+            Union[bool, InvalidConstraintError, UnsatisfiedError]: if no complain, return False, else returns error.
         """
 
         return ListLikeConstraint.static_validate(self.constraint, value)
 
     @staticmethod
-    def static_validate(constraint: Union[list, tuple], value) -> bool:
+    def static_validate(constraint: Union[list, tuple], value) -> Union[bool, UnsatisfiedError, InvalidConstraintError]:
         """Validate the value using the constraint
 
         Args:
@@ -550,44 +575,49 @@ class ListLikeConstraint:
             value (any): value to be validated
 
         Returns:
-            bool: Whether the value satisfies the constraint
+            Union[bool, InvalidConstraintError, UnsatisfiedError]: if no complain, return False, else returns error.
         """
         s_constraint = ListLikeConstraint.simplify_constraint(constraint)
         if s_constraint == None:
-            return False
+            return InvalidConstraintError(constraint, ListLikeConstraint)
 
         if type(value) not in [list, tuple]:
-            return False
+            return UnsatisfiedError(f"Expect the value's type to be either a list or a tuple but the type of value '{value}' is '{type(value).__name__}'")
 
         offset = 0
         for i, c in enumerate(s_constraint):
             value_i = i + offset
 
             if value_i >= len(value):
-                return False
+                return UnsatisfiedError(f"The element in the value '{value}' are not enough, stop at constraint index {i}")
 
             if TypeConstraint.is_valid_type_constraint(c):
-                if not TypeConstraint.static_validate(c, value[value_i]):
-                    return False
+                err = TypeConstraint.static_validate(c, value[value_i])
+                if err:
+                    return err
             elif ListLikeConstraint.is_valid_lk_constraint(c):
-                if not ListLikeConstraint.static_validate(c, value[value_i]):
-                    return False
+                err = ListLikeConstraint.static_validate(c, value[value_i])
+                if err:
+                    return err
             elif DictConstraint.is_valid_dt_constraint(c):
-                if not DictConstraint.static_validate(c, value[value_i]):
-                    return False
+                err = DictConstraint.static_validate(c, value[value_i])
+                if err:
+                    return err
             elif Or.is_valid_or_constraint(c):
-                if not Or.static_validate(c, value[value_i]):
-                    return False
+                err = c.validate(value[value_i])
+                if err:
+                    return err
             elif Check.is_valid_check_constraint(c):
-                if not Check.static_validate(c, value[value_i]):
-                    return False
+                err = Check.static_validate(c, value[value_i])
+                if err:
+                    return err
             elif type(c) == ListLikeConstraint.Countless:
                 same_type_count = 0
                 while True:
                     # check type
                     if value_i >= len(value) or not c.validate(value[value_i]):
                         if same_type_count < c.at_least:
-                            return False
+                            return UnsatisfiedError(f"Not enough element in value '{value}' for {c}, stop at constraint index {i}")
                         else:
                             offset -= 1
                             break
@@ -596,8 +626,8 @@ class ListLikeConstraint:
                         offset += 1
                         value_i = i + offset
 
-        if len(s_constraint) + offset != len(value):
-            return False
+        if len(s_constraint) + offset < len(value):
+            return UnsatisfiedError(f"Too much element in value '{value}'")
         return True
 
     @staticmethod
@@ -729,7 +759,7 @@ class Or:
 
     Static Method:
     -----
-    is_valid_or_constraint(constraint: any) -> bool
+    is_valid_or_constraint(constraint: any) -> Union[bool, UnsatisfiedError, InvalidConstraintError]
         Check whether constraint is a valid 'or' constraint
 
     Method:
@@ -791,33 +821,36 @@ class Or:
 
         return constraint.is_constraint_valid()
 
-    def validate(self, value) -> bool:
+    def validate(self, value) -> Union[bool, UnsatisfiedError, InvalidConstraintError]:
         """Validate the value using the instance (instance itself is a constraint)
 
         Args:
             value (any): value to be validated
 
         Returns:
-            bool: whether value satisfies the constraint
+            Union[bool, InvalidConstraintError, UnsatisfiedError]: if no complain, return False, else returns error.
         """
+
+        if not self.is_constraint_valid():
+            return InvalidConstraintError("One of the constraint in the constraint list in 'or' constraint is invalid")
 
         for c in self.constraint:
             if TypeConstraint.is_valid_type_constraint(c):
-                if TypeConstraint.static_validate(c, value):
-                    return True
+                if not TypeConstraint.static_validate(c, value):
+                    return False
             elif ListLikeConstraint.is_valid_lk_constraint(c):
-                if ListLikeConstraint.static_validate(c, value):
-                    return True
+                if not ListLikeConstraint.static_validate(c, value):
+                    return False
             elif DictConstraint.is_valid_dt_constraint(c):
-                if DictConstraint.static_validate(c, value):
-                    return True
+                if not DictConstraint.static_validate(c, value):
+                    return False
             elif Or.is_valid_or_constraint(c):
-                if c.validate(value):
-                    return True
+                if not c.validate(value):
+                    return False
             elif Check.is_valid_check_constraint(c):
-                if Check.static_validate(c, value):
-                    return True
-        return False
+                if not Check.static_validate(c, value):
+                    return False
+        return UnsatisfiedError(f"The value '{value}' does not satisfied any of the constraints")
 
 
 class Check:
@@ -825,8 +858,8 @@ class Check:
 
     The check constraint is a function that accepts only one value as an argument.
     The value to be validated will be passed into check constraint as an argument.
-    If check constraint returns true, value satisfies the check constraint.
-    If check constraint returns false, value does not satisfies the check constraint.
+    If check constraint returns False, there is no complain, value satisfies the constraint.
+    If check constraint returns an error, there is a complain.
     It is like a user-defined constraint.
 
     Attributes:
@@ -845,7 +878,7 @@ class Check:
     -----
     is_constraint_valid() -> bool
         Check whether the instance's constraint is a check constraint
-    validate(value: any) -> bool
+    validate(value: any) -> Union[bool, UnsatisfiedError, InvalidConstraintError]
         Validate the value using the check constraint (returns the result of check constraint function call)
 
     """
@@ -875,7 +908,7 @@ class Check:
 
         return type(constraint) == FunctionType and constraint.__code__.co_argcount == 1
 
-    def validate(self, value) -> bool:
+    def validate(self, value) -> Union[bool, UnsatisfiedError, InvalidConstraintError]:
         """Validate the value using the instance's check constraint
 
         It validates by returning the result of the instance's check constraint function call.
@@ -885,12 +918,12 @@ class Check:
             value (any): value to be validated
 
         Returns:
-            bool: the result of the instance's check constraint function call
+            Union[bool, InvalidConstraintError, UnsatisfiedError]: if no complain, return False, else returns error.
         """
         return Check.static_validate(self.constraint, value)
 
     @staticmethod
-    def static_validate(constraint: FunctionType, value) -> bool:
+    def static_validate(constraint: FunctionType, value) -> Union[bool, UnsatisfiedError, InvalidConstraintError]:
         """Validate the value using the check constraint
 
         It validates by returning the result of the check constraint function call.
@@ -901,12 +934,13 @@ class Check:
             value: value to be validated
 
         Returns:
-            bool: the result of the check constrain function call
+            Union[bool, InvalidConstraintError, UnsatisfiedError]: if no complain, return False, else returns error.
         """
         if not Check.is_valid_check_constraint(constraint):
-            return False
+            return InvalidConstraintError("The check constraint is invalid")
 
-        return constraint(value)
+        err = constraint(value)
+        return err and UnsatisfiedError(err)
 
 
 def get_constraint_class(
